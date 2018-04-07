@@ -16,17 +16,13 @@ def readDataOrder(t,Yn,sigY,order,plot=False):
     rc('text',usetex=True)
     rc('font',family='sanserif')
     ts = []
-#    print("order: {}".format(order))
     for o in range(order):
         ts.append([x**(o+1) for x in t])
     F = np.vstack((np.ones([1,len(t)]),ts))
-#    print("T: {}".format(t))
-#    print("F: {}".format(F))
     gamma = np.divide(F,sigY)
-#    print("F/sigy: {}".format(gamma))
     alpha = np.dot(gamma,np.transpose(gamma))
     delta = np.divide(Yn,sigY)
-#    delta[np.isnan(delta)] = np.nanmean(delta)
+    delta[np.isnan(delta)] = np.nanmean(delta)
     beta = np.dot(delta,np.transpose(gamma))
     epsilon = np.linalg.inv(alpha)
     Afit = np.dot(beta,epsilon)
