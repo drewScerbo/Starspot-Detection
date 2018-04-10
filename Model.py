@@ -5,7 +5,6 @@ Created on Thu Mar  1 12:27:38 2018
 
 @author: as0216
 """
-from scipy.stats import kstest
 from transit import t2z,occultquad
 import numpy as np
 import kplr
@@ -13,21 +12,43 @@ from LLSDataReader import readDataOrder
 import matplotlib.pyplot as plt
 
 class Model:
-        
+    
     def getKS(self,array):
+        from scipy.stats import kstest
         return(kstest(array,'norm'))
     
     def getData(self):
         client = kplr.API()
-        return [client.planet('2b'),client.koi(340.01)]
-#        return [client.koi(340.01)]
-    
-    def make_LC_model(self,koi):
-        # use Mandel and Agol 2002 equations
-        # transit.occultquad()
-        pass
+#        return [client.koi(340.01),client.planet('2b')]
+        return [client.koi(340.01)]
     
     def convolve(self,lc,model):
+        """
+        
+        how long is the shutter open for?
+        
+        Q:
+            There are two kinds of cadence time for Kepler, 5 minutes and 30 
+            minutes.
+            I just know there is no shutter and the CCDs of Kepler can be 
+            locked after exposure.
+            
+            But how to realize that? Remember we have to not affect the photometry.
+            
+            The other question is so far how many unique sources has Kepler 
+            observed? 160,000?
+        
+        A:
+            They don't stop. The Kepler CCDs read out the signals collected during
+            the accumulated time of 6.02 seconds. The fixed read out time is 0.52 
+            seconds. So each CCD gets one frame every (6.02 + 0.52) = 6.54 seconds.
+            Then Kepler sums up every 9 frames (short cadence) and 270 frames 
+            (long cadence). The time between two short cadences is 
+            (6.54 x 9) = 58.9 seconds, and (6.54 x 270) = 1766 seconds between two 
+            long cadences, but the exposure time is (6.02 x 9) = 54.2 seconds for a
+            short cadence, and (6.02 x 270) = 1625 seconds for a long cadence.
+        
+        """
         return np.convolve(lc,model)
     
     def findTransits(self,Time,Flux,num_transits,time0,period):
@@ -44,18 +65,9 @@ class Model:
                 transits.append(t)
             i += 1
             c += 1
-                
-#        for i in range(len(transits) - 1):
-#            # remove if f(t) == f(t+1)
-#            idx = (np.abs(np.array(Time)-transits[i])).argmin()
-#            idx2 = (np.abs(np.array(Time)-transits[i+1])).argmin()
-#            if Flux[idx] == Flux[idx2]:
-#                transits.remove(transits[i])
-#            else:
-#                break
         return transits
     
-    def normalize(self, koiLC,time0,duration,period,numTransits,plot=False):
+    def normalize(self, koiLC,time0,duration,period,numTransits,quarter,plot=False):
         """
         normalize():
             find peak flux of lightcurve
@@ -84,6 +96,9 @@ class Model:
         if plot:
             plt.figure()
             plt.plot(Time,Flux,'g.')
+            plt.xlabel("Time [days]")
+            plt.ylabel("Flux")
+            plt.title("Quarter " + str(quarter))
             Ymin, Ymax = min(Flux), max(Flux)
             for t in transits:
                 plt.plot([t,t],[Ymin,Ymax],'r-')
@@ -92,9 +107,11 @@ class Model:
                          [Flux[idx],Flux[idx]],'r-')
             plt.show()
         
-        normedLCs, normedTs = [],[]
+        normedLCs, normedTs, transitT = [],[],[]
+        transits = [transits[0]]
         for i in range(len(transits)):
             t = transits[i]
+            transitT.append(t)
             idx = (np.abs(np.array(Time)-t)).argmin()
             end = idx+int(duration)
             start = idx-int(duration)
@@ -108,10 +125,6 @@ class Model:
             
             A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
             times = np.subtract(Time[startOut:endOut+1],t)
-#            ts = [times,[x**(2) for x in times]]
-#            for o in range(2):
-#                ts.append([x**(o+1) for x in times])
-#            F = np.vstack((np.ones([1,len(times)]),ts))
             F = np.vstack((np.ones([1,len(times)]),times,[x**(2) for x in times]))
             peakFlux = np.percentile(Flux,95)
             Yfit = np.dot(A,F)
@@ -127,36 +140,57 @@ class Model:
                 plt.plot(intransitT,intransitF,'go')
                 plt.plot(outTransitT,outTransitF,'b.')
                 plt.plot(outTransitT,Y,'k-')
+                plt.legend(["In-transit Flux","Out-transit Flux","LLS fit of Out-transit"])
+                plt.xlabel("Normalized Time [days]")
+                plt.ylabel("Flux")
                 plt.show()
                 
                 plt.figure()
-                plt.plot(times,diffLC,'b.--')
+                plt.plot(times,diffLC,'b.')
+                plt.xlabel("Normalized Time [days]")
+                plt.ylabel("Normalized Flux")
                 plt.show()
                 
                 
 
-        return normedLCs,normedTs
+        return normedLCs,normedTs,transitT
     
-    def makeModel(self,ror,ldm_coeff1,ldm_coeff2):
+    def makeModel(self,tt,period,incl,t,dor,ror,ldm_coeff1,ldm_coeff2):
         """
+        -occultquad
         INPUTS:
             z -- sequence of positional offset values
-    
             p0 -- planet/star radius ratio
-    
             gamma -- two-sequence.
-               quadratic limb darkening coefficients.  (c1=c3=0; c2 =
-               gamma[0] + 2*gamma[1], c4 = -gamma[1]).  If only a single
-               gamma is used, then you're assuming linear limb-darkening.
             koi_ldm_coeff1
             koi_ldm_coeff2
            
         OUTPUTS:
             the function based at times z
-        """
         
+        -t2z
+        I have modified this function so that the midpoint of every transit is 0
+        :INPUTS:
+        tt --  scalar. transit ephemeris
+        per --  scalar. planetary orbital period (in days)
+        inc -- scalar. orbital inclination (in degrees)
+        hjd -- scalar or array of times, typically heliocentric or
+               barycentric julian date.
+        ars -- scalar.  ratio a/Rs,  orbital semimajor axis over stellar radius
+        koi_dor
+        OUPUTS:
+            
+        """
         # use t2z to make z
-        z = []
-        return occultquad(z,ror,gamma)
+        z = t2z(tt,period,incl,t,dor)
+        return occultquad(z,ror,[ldm_coeff1,ldm_coeff2])
     
-    t2z
+    def applyModel(self,LCs,times,transits):
+        """
+        take in a lightcurves and times for each transit
+        take in planet period
+        
+        find places in
+        
+        """
+        pass

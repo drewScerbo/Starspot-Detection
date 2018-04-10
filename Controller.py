@@ -21,10 +21,11 @@ if __name__ == '__main__':
     
     # for each koi in data, get LC and normalize the first LC
     for koi in kois:
-        c = -1
+        c = 0
 #        Flux,Time = [],[]
         
-#        print(len(koi.get_light_curves(short_cadence=False)))
+        print("number of quarters: {}".format(len(\
+              koi.get_light_curves(short_cadence=False))))
         for lc in koi.get_light_curves(short_cadence=False):
             # lc => data for 1 quarter
             time, flux = [], []
@@ -37,17 +38,16 @@ if __name__ == '__main__':
                 break
             c +=1
             
-            diffLC,t = model.normalize(lc,koi.koi_time0bk,koi.koi_duration, \
-                                   koi.koi_period,koi.koi_num_transits,True)
-#            plt.figure()
-#            plt.plot(time,flux,'b.')
-#            plt.show()
-            
-    
-    
-#    z = linspace(0, 1.2, 100)
-#    gammavals = [[0., 0.], [1., 0.], [2., -1.]]
-#    figure()
-#    for gammas in gammavals:
-#        f = occultquad(z, 0.1, gammas)
-#        plot(z, f)
+            diffLC,t,transits = model.normalize(lc,koi.koi_time0bk,koi.koi_duration, \
+                                   koi.koi_period,koi.koi_num_transits,c,True)
+            for i in range(len(t)):
+                plt.figure()
+                plt.plot(t[i],diffLC[i],'b.')
+                # tt,period,incl,hjd,dor,ror,ldm_coeff1,ldm_coeff2
+                m = model.makeModel(transits[i],koi.koi_period,\
+                                      koi.koi_incl,t[i],koi.koi_dor,koi.koi_ror,\
+                                      koi.koi_ldm_coeff1,koi.koi_ldm_coeff2)
+                print()
+#                print("model: {}".format(m))
+                plt.plot(t[i],m,'g-')
+                plt.show()

@@ -417,7 +417,7 @@ def t2z(tt, per, inc, hjd, ars, ecc=0, longperi=0, transitonly=False, occultatio
     #if not p.transit:
     #    print "Must use a transiting exoplanet!"
     #    return False
-    from analysis import trueanomaly
+    #from analysis import trueanomaly ### commented out because unused
 
 
     if ecc is not 0:
@@ -427,10 +427,14 @@ def t2z(tt, per, inc, hjd, ars, ecc=0, longperi=0, transitonly=False, occultatio
 
     if ecc==0:
         #omega_orb = 2*np.pi/per
-        omega_tdiff = (2*np.pi/per) * (hjd - tt)
+        omega_tdiff = (2*np.pi/per) * hjd
+#        print("hjd: {}".format(hjd))
+#        print("omega: {}".format(omega_tdiff))
         cosom = np.cos(omega_tdiff)
         z = ars * np.sqrt(np.sin(omega_tdiff)**2 + \
                               (np.cos(np.deg2rad(inc))*cosom)**2)
+#        print("line: {}".format((.1*np.cos(np.deg2rad(inc))*cosom)**2))
+        # check the second line to make sure it's close to 0
         if transitonly:
             z[cosom<0] = 100.
         if occultationonly:
@@ -440,7 +444,7 @@ def t2z(tt, per, inc, hjd, ars, ecc=0, longperi=0, transitonly=False, occultatio
         print("WARNING: this hasn't been tested!!! Get it working someday.")
         if longperi is None:
             longperi = 180.
-        f = trueanomaly(ecc, (2*np.pi/per) * (hjd - tt))
+        f = 0#trueanomaly(ecc, (2*np.pi/per) * (hjd - tt))
         z = ars * (1. - ecc**2) * np.sqrt(1. - (np.sin(longperi + f) * np.sin(inc*np.pi/180.))**2) / \
             (1. + ecc * np.cos(f)) 
 
