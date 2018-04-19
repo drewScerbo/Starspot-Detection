@@ -20,6 +20,12 @@ class Model:
     def getData(self):
         client = kplr.API()
 #        return [client.koi(340.01),client.planet('2b')]
+        plan = client.planet('2b')
+2        
+        print(vars(plan))
+        
+        # get star of the planet
+#        return []
         return [client.koi(340.01)]
     
     def convolve(self,lc,model):
@@ -55,15 +61,15 @@ class Model:
         transits = []
         
         ### this finds transits times ###
-        i, c = 0, 0
+        c = 0
         while c < num_transits:
-            t = time0 + i*period
+            t = time0 + c*period
             if t < max(Time) and t > min(Time):
                 transits.append(t)
-            t = time0 - i*period
-            if t < max(Time) and t > min(Time):
-                transits.append(t)
-            i += 1
+            else:
+                t = time0 - c*period
+                if t < max(Time) and t > min(Time):
+                    transits.append(t)
             c += 1
         return transits
     
@@ -103,26 +109,27 @@ class Model:
             for t in transits:
                 plt.plot([t,t],[Ymin,Ymax],'r-')
                 idx = (np.abs(np.array(Time)-t)).argmin()
-                plt.plot([Time[idx-int(duration)],Time[idx+int(duration)]],\
+                plt.plot([Time[idx]-duration/48,Time[idx]+duration/24],\
                          [Flux[idx],Flux[idx]],'r-')
             plt.show()
         
-        normedLCs, normedTs, transitT = [],[],[]
-        transits = [transits[0]]
+        normedLCs,normedTs,transitT = [],[],[]
+
         for i in range(len(transits)):
             t = transits[i]
             transitT.append(t)
-            idx = (np.abs(np.array(Time)-t)).argmin()
-            end = idx+int(duration)
-            start = idx-int(duration)
-            endOut = idx+3*int(duration)
-            startOut = idx-3*int(duration)
             
+            idx = (np.abs(np.array(Time)-t)).argmin()
+            end = (np.abs(np.array(Time)-t-(duration/48))).argmin()
+            start = (np.abs(np.array(Time)-t+(duration/48))).argmin()
+            endOut = (np.abs(np.array(Time)-t-(duration/24))).argmin()
+            startOut = (np.abs(np.array(Time)-t+(duration/24))).argmin()
+
             outTransitT = Time[startOut:start] + Time[end+1:endOut+1]
             outTransitT = np.subtract(outTransitT,t)
             outTransitF = Flux[startOut:start] + Flux[end+1:endOut+1]
             outTransitE = Error[startOut:start] + Error[end+1:endOut+1]
-            
+
             A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
             times = np.subtract(Time[startOut:endOut+1],t)
             F = np.vstack((np.ones([1,len(times)]),times,[x**(2) for x in times]))
@@ -132,10 +139,11 @@ class Model:
             diffLC += peakFlux
             diffLC /= peakFlux
             normedLCs.append(diffLC)
+            intransitT = np.subtract(Time[start:end+1],t)
             normedTs.append(times)
             if plot:
+                print("transit time: {}".format(t))
                 plt.figure()
-                intransitT = np.subtract(Time[start:end+1],t)
                 intransitF = Flux[start:end+1]
                 plt.plot(intransitT,intransitF,'go')
                 plt.plot(outTransitT,outTransitF,'b.')
@@ -157,40 +165,63 @@ class Model:
     
     def makeModel(self,tt,period,incl,t,dor,ror,ldm_coeff1,ldm_coeff2):
         """
-        -occultquad
-        INPUTS:
-            z -- sequence of positional offset values
-            p0 -- planet/star radius ratio
-            gamma -- two-sequence.
-            koi_ldm_coeff1
-            koi_ldm_coeff2
-           
-        OUTPUTS:
-            the function based at times z
-        
         -t2z
         I have modified this function so that the midpoint of every transit is 0
-        :INPUTS:
-        tt --  scalar. transit ephemeris
-        per --  scalar. planetary orbital period (in days)
-        inc -- scalar. orbital inclination (in degrees)
-        hjd -- scalar or array of times, typically heliocentric or
-               barycentric julian date.
-        ars -- scalar.  ratio a/Rs,  orbital semimajor axis over stellar radius
-        koi_dor
-        OUPUTS:
-            
+        
+        
+        find lmdk from the star 
         """
+        
         # use t2z to make z
         z = t2z(tt,period,incl,t,dor)
         return occultquad(z,ror,[ldm_coeff1,ldm_coeff2])
     
-    def applyModel(self,LCs,times,transits):
+    def applyModel(self,LCs,times,model,transitTimes,duration,quarter,plot=False):
         """
-        take in a lightcurves and times for each transit
-        take in planet period
+        -take in a lightcurves and times for each transit
+        -take in planet period
         
-        find places in
+        -find places in lightcurve that doesn't have transits or with in 5 
+        durations of a transit and apply a transit
         
+        
+        PAPER:
+            residuals = observed data - expected
+            don't use ingress/egress ???
+            seperated into in in-residuals and out-residuals
+            
         """
-        pass
+#        N = len(transitTimes)
+#        if N != len(times) and N != len(LCs):
+#            print("length error")
+#            # throw error
+#            pass
+        
+        for i in range(len(transitTimes)):
+            t = transitTimes[i]
+            lc = LCs[i]
+            tt = times[i]
+            start = (np.abs(np.array(tt)+(duration/48))).argmin()
+            end = (np.abs(np.array(tt)-(duration/48))).argmin()
+            residual = lc - model
+            residualOUT = np.array(residual[:start])
+            residualOUT = np.append(residualOUT,residual[end+1:])
+            timeOUT = tt[:start]
+            timeOUT = np.append(timeOUT,tt[end+1:])
+            if plot:
+#                plt.figure()
+#                plt.plot(tt,residual,'r.')
+#                plt.plot([tt[start],tt[start]],[-.002,.003],'g-')
+#                plt.plot([tt[end],tt[end]],[-.002,.003],'k-')
+#                plt.title("Residual of Quarter {} at Time {}".format(quarter,t))
+                
+                plt.figure()
+                plt.title("In-transit vs Out-transit of Quarter " + str(quarter))
+#                plt.plot(tt[:start],residual[:start],'b.')
+#                plt.plot(tt[end+1:],residual[end+1:],'b.')
+                plt.plot(timeOUT,residualOUT,'b.')
+                plt.plot(tt[start:end+1],residual[start:end+1],'g.')
+                plt.show()
+            return residual[start:end+1],residualOUT,tt[start:end+1],timeOUT
+
+

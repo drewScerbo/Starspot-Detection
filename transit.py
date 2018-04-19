@@ -842,7 +842,7 @@ def occultquad(z,p0, gamma, retall=False, verbose=False):
     fourOmega = 1. - gamma[0]/3. - gamma[1]/6. # Actually 4*Omega
     a = (z - p)*(z - p)
     b = (z + p)*(z + p)
-    k = 0.5 * np.sqrt((1. - a) / (z * p))  # 8%
+#    k = 0.5 * np.sqrt((1. - a) / (z * p))  # 8%
     p2 = p*p
     z2 = z*z
     ninePi = 9*np.pi

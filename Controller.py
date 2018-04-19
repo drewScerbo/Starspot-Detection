@@ -40,14 +40,14 @@ if __name__ == '__main__':
             
             diffLC,t,transits = model.normalize(lc,koi.koi_time0bk,koi.koi_duration, \
                                    koi.koi_period,koi.koi_num_transits,c,True)
-            for i in range(len(t)):
-                plt.figure()
-                plt.plot(t[i],diffLC[i],'b.')
+            for i in range(len(transits)):
                 # tt,period,incl,hjd,dor,ror,ldm_coeff1,ldm_coeff2
-                m = model.makeModel(transits[i],koi.koi_period,\
-                                      koi.koi_incl,t[i],koi.koi_dor,koi.koi_ror,\
-                                      koi.koi_ldm_coeff1,koi.koi_ldm_coeff2)
-                print()
-#                print("model: {}".format(m))
-                plt.plot(t[i],m,'g-')
+                m = model.makeModel(transits[i],koi.koi_period,koi.koi_incl,t[i],\
+                                    koi.koi_dor,koi.koi_ror,koi.koi_ldm_coeff1,\
+                                    koi.koi_ldm_coeff2)
+                print(m)
+                plt.figure()
+                plt.plot(t,diffLC[i],'b.')
+                plt.plot(t,m,'g-')
                 plt.show()
+                residuals = model.applyModel(diffLC,t,m,transits,koi.koi_duration,c,True)
