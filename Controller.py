@@ -8,6 +8,7 @@ Created on Thu Mar  1 12:27:13 2018
 from Model import Model
 from View import View
 import matplotlib.pyplot as plt
+import numpy as np
 
 class Controller:
     pass
@@ -45,9 +46,11 @@ if __name__ == '__main__':
                 m = model.makeModel(transits[i],koi.koi_period,koi.koi_incl,t[i],\
                                     koi.koi_dor,koi.koi_ror,koi.koi_ldm_coeff1,\
                                     koi.koi_ldm_coeff2)
-                print(m)
                 plt.figure()
-                plt.plot(t,diffLC[i],'b.')
-                plt.plot(t,m,'g-')
+                plt.plot(t[i],diffLC[i],'b.')
+                plt.plot(t[i],m,'g-')
                 plt.show()
-                residuals = model.applyModel(diffLC,t,m,transits,koi.koi_duration,c,True)
+                INres,OUTres,INt,OUTt = model.applyModel(diffLC[i],t[i],m,transits,koi.koi_duration,c,True)
+                ks, p = model.getKS(INres,OUTres)
+                print("ks: {:.4}, p: {:.4}".format(ks,p))
+                

@@ -10,20 +10,17 @@ import numpy as np
 import kplr
 from LLSDataReader import readDataOrder
 import matplotlib.pyplot as plt
+from scipy.stats import ks_2samp
 
 class Model:
     
-    def getKS(self,array):
-        from scipy.stats import kstest
-        return(kstest(array,'norm'))
+    def getKS(self,arr1,arr2):
+#        return(ks_2samp(arr1[:,1],arr2[:,1]))[0]
+        return ks_2samp(arr1,arr2)
     
     def getData(self):
         client = kplr.API()
 #        return [client.koi(340.01),client.planet('2b')]
-        plan = client.planet('2b')
-2        
-        print(vars(plan))
-        
         # get star of the planet
 #        return []
         return [client.koi(340.01)]
@@ -125,10 +122,10 @@ class Model:
             endOut = (np.abs(np.array(Time)-t-(duration/24))).argmin()
             startOut = (np.abs(np.array(Time)-t+(duration/24))).argmin()
 
-            outTransitT = Time[startOut:start] + Time[end+1:endOut+1]
+            outTransitT = Time[startOut-1:start] + Time[end:endOut+1]
             outTransitT = np.subtract(outTransitT,t)
-            outTransitF = Flux[startOut:start] + Flux[end+1:endOut+1]
-            outTransitE = Error[startOut:start] + Error[end+1:endOut+1]
+            outTransitF = Flux[startOut-1:start] + Flux[end:endOut+1]
+            outTransitE = Error[startOut-1:start] + Error[end:endOut+1]
 
             A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
             times = np.subtract(Time[startOut:endOut+1],t)
@@ -139,12 +136,13 @@ class Model:
             diffLC += peakFlux
             diffLC /= peakFlux
             normedLCs.append(diffLC)
-            intransitT = np.subtract(Time[start:end+1],t)
+            intransitT = np.subtract(Time[start:end],t)
+            print("in vs out times: {}, {}".format(len(intransitT),len(outTransitT)))
             normedTs.append(times)
             if plot:
                 print("transit time: {}".format(t))
                 plt.figure()
-                intransitF = Flux[start:end+1]
+                intransitF = Flux[start:end]
                 plt.plot(intransitT,intransitF,'go')
                 plt.plot(outTransitT,outTransitF,'b.')
                 plt.plot(outTransitT,Y,'k-')
@@ -168,60 +166,37 @@ class Model:
         -t2z
         I have modified this function so that the midpoint of every transit is 0
         
-        
         find lmdk from the star 
         """
-        
         # use t2z to make z
         z = t2z(tt,period,incl,t,dor)
         return occultquad(z,ror,[ldm_coeff1,ldm_coeff2])
     
-    def applyModel(self,LCs,times,model,transitTimes,duration,quarter,plot=False):
+    def applyModel(self,lc,times,model,transitTimes,duration,quarter,plot=False):
         """
-        -take in a lightcurves and times for each transit
-        -take in planet period
-        
-        -find places in lightcurve that doesn't have transits or with in 5 
-        durations of a transit and apply a transit
-        
-        
-        PAPER:
-            residuals = observed data - expected
-            don't use ingress/egress ???
-            seperated into in in-residuals and out-residuals
-            
+        returns INresiduals, OUTresiduals, INtime, OUTtime
         """
-#        N = len(transitTimes)
-#        if N != len(times) and N != len(LCs):
-#            print("length error")
-#            # throw error
-#            pass
-        
-        for i in range(len(transitTimes)):
-            t = transitTimes[i]
-            lc = LCs[i]
-            tt = times[i]
-            start = (np.abs(np.array(tt)+(duration/48))).argmin()
-            end = (np.abs(np.array(tt)-(duration/48))).argmin()
-            residual = lc - model
-            residualOUT = np.array(residual[:start])
-            residualOUT = np.append(residualOUT,residual[end+1:])
-            timeOUT = tt[:start]
-            timeOUT = np.append(timeOUT,tt[end+1:])
-            if plot:
-#                plt.figure()
-#                plt.plot(tt,residual,'r.')
-#                plt.plot([tt[start],tt[start]],[-.002,.003],'g-')
-#                plt.plot([tt[end],tt[end]],[-.002,.003],'k-')
-#                plt.title("Residual of Quarter {} at Time {}".format(quarter,t))
-                
-                plt.figure()
-                plt.title("In-transit vs Out-transit of Quarter " + str(quarter))
-#                plt.plot(tt[:start],residual[:start],'b.')
-#                plt.plot(tt[end+1:],residual[end+1:],'b.')
-                plt.plot(timeOUT,residualOUT,'b.')
-                plt.plot(tt[start:end+1],residual[start:end+1],'g.')
-                plt.show()
-            return residual[start:end+1],residualOUT,tt[start:end+1],timeOUT
+    
+        resINs, resOUTs = [],[] 
+        timeINs, timeOUTs = [],[]
+        start = (np.abs(np.array(times)+(duration/48))).argmin()
+        end = (np.abs(np.array(times)-(duration/48))).argmin()-1
+        residual = lc - model
+        residualOUT = np.array(residual[:start])
+        residualOUT = np.append(residualOUT,residual[end+1:])
+        timeOUT = times[:start]
+        timeOUT = np.append(timeOUT,times[end+1:])
+        if plot:
+            plt.figure()
+            plt.title("In-transit vs Out-transit of Quarter " + str(quarter))
+            plt.plot(timeOUT,residualOUT,'b.')
+            plt.plot(times[start:end],residual[start:end],'g.')
+            plt.show()
+        resINs.append(residual[start:end])
+        resOUTs.append(residualOUT)
+        timeINs.append(times[start:end])
+        timeOUTs.append(timeOUT)
+        return residual[start:end],residualOUT,times[start:end],timeOUT
+#        return resINs,resOUTs,timeINs,timeOUTs
 
 
