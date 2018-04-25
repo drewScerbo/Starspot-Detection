@@ -7,8 +7,6 @@ Created on Thu Mar  1 12:27:13 2018
 """
 from Model import Model
 from View import View
-import matplotlib.pyplot as plt
-import numpy as np
 
 class Controller:
     pass
@@ -40,17 +38,14 @@ if __name__ == '__main__':
             c +=1
             
             diffLC,t,transits = model.normalize(lc,koi.koi_time0bk,koi.koi_duration, \
-                                   koi.koi_period,koi.koi_num_transits,c,True)
+                                   koi.koi_period,koi.koi_num_transits,c,False)
             for i in range(len(transits)):
                 # tt,period,incl,hjd,dor,ror,ldm_coeff1,ldm_coeff2
                 m = model.makeModel(transits[i],koi.koi_period,koi.koi_incl,t[i],\
                                     koi.koi_dor,koi.koi_ror,koi.koi_ldm_coeff1,\
                                     koi.koi_ldm_coeff2)
-                plt.figure()
-                plt.plot(t[i],diffLC[i],'b.')
-                plt.plot(t[i],m,'g-')
-                plt.show()
-                INres,OUTres,INt,OUTt = model.applyModel(diffLC[i],t[i],m,transits,koi.koi_duration,c,True)
-                ks, p = model.getKS(INres,OUTres)
+                INres,OUTres,INt,OUTt = model.applyModel(diffLC[i],t[i],m,\
+                                            transits,koi.koi_duration,c,False)
+                ks, p = model.getKS(INres,OUTres,True)
                 print("ks: {:.4}, p: {:.4}".format(ks,p))
                 

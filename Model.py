@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -14,16 +15,27 @@ from scipy.stats import ks_2samp
 
 class Model:
     
-    def getKS(self,arr1,arr2):
-#        return(ks_2samp(arr1[:,1],arr2[:,1]))[0]
+    def getKS(self,arr1,arr2,plot=False):
+        if plot:
+            y1 = np.cumsum(arr1)
+            y2 = np.cumsum(arr2)
+            plt.figure()
+            plt.plot(y1,'g--')
+            plt.plot(y2,'b--')
+            plt.title("CDF's of in and out transits")
+            plt.show()
         return ks_2samp(arr1,arr2)
     
     def getData(self):
         client = kplr.API()
 #        return [client.koi(340.01),client.planet('2b')]
+#        print(client.planet('2b').koi_number)
         # get star of the planet
 #        return []
-        return [client.koi(340.01)]
+        planetKOIs = [client.planet('2b').koi_number]
+        kois = [client.koi(340.01)]
+        kois.extend([client.koi(s) for s in planetKOIs])
+        return kois
     
     def convolve(self,lc,model):
         """
@@ -137,7 +149,6 @@ class Model:
             diffLC /= peakFlux
             normedLCs.append(diffLC)
             intransitT = np.subtract(Time[start:end],t)
-            print("in vs out times: {}, {}".format(len(intransitT),len(outTransitT)))
             normedTs.append(times)
             if plot:
                 print("transit time: {}".format(t))
