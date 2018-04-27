@@ -12,6 +12,7 @@ import kplr
 from LLSDataReader import readDataOrder
 import matplotlib.pyplot as plt
 from scipy.stats import ks_2samp
+from scipy.signal import fftconvolve
 
 class Model:
     
@@ -20,24 +21,21 @@ class Model:
             y1 = np.cumsum(arr1)
             y2 = np.cumsum(arr2)
             plt.figure()
-            plt.plot(y1,'g--')
-            plt.plot(y2,'b--')
+            plt.plot(y1,'g--.')
+            plt.plot(y2,'b--.')
             plt.title("CDF's of in and out transits")
             plt.show()
         return ks_2samp(arr1,arr2)
     
     def getData(self):
         client = kplr.API()
-#        return [client.koi(340.01),client.planet('2b')]
-#        print(client.planet('2b').koi_number)
-        # get star of the planet
-#        return []
+        # ror^2 >= 0.01 - to start, try >= 0.008 next
         planetKOIs = [client.planet('2b').koi_number]
         kois = [client.koi(340.01)]
         kois.extend([client.koi(s) for s in planetKOIs])
         return kois
     
-    def convolve(self,lc,model):
+    def convolve(self,model):
         """
         
         how long is the shutter open for?
@@ -64,7 +62,13 @@ class Model:
             short cadence, and (6.02 x 270) = 1625 seconds for a long cadence.
         
         """
-        return np.convolve(lc,model)
+        k = []
+        for i in range(1766*2):
+            if i % 13== 0:
+                k.append(1)
+            else: 
+                k.append(0)
+        return fftconvolve(model,k,'same')
     
     def findTransits(self,Time,Flux,num_transits,time0,period):
         transits = []

@@ -6,7 +6,7 @@ Created on Thu Mar  1 12:27:13 2018
 @author: as0216
 """
 from Model import Model
-from View import View
+#from View import View
 
 class Controller:
     pass
@@ -15,7 +15,7 @@ class Controller:
 if __name__ == '__main__':
     cont = Controller()
     model = Model()
-    view = View()
+#    view = View()
     kois = model.getData() # get kois
     
     # for each koi in data, get LC and normalize the first LC
@@ -38,14 +38,18 @@ if __name__ == '__main__':
             c +=1
             
             diffLC,t,transits = model.normalize(lc,koi.koi_time0bk,koi.koi_duration, \
-                                   koi.koi_period,koi.koi_num_transits,c,False)
+                                   koi.koi_period,koi.koi_num_transits,c,True)
             for i in range(len(transits)):
+                
                 # tt,period,incl,hjd,dor,ror,ldm_coeff1,ldm_coeff2
                 m = model.makeModel(transits[i],koi.koi_period,koi.koi_incl,t[i],\
                                     koi.koi_dor,koi.koi_ror,koi.koi_ldm_coeff1,\
                                     koi.koi_ldm_coeff2)
+
+                m = model.convolve(m)
+
                 INres,OUTres,INt,OUTt = model.applyModel(diffLC[i],t[i],m,\
-                                            transits,koi.koi_duration,c,False)
+                                            transits,koi.koi_duration,c,True)
                 ks, p = model.getKS(INres,OUTres,True)
                 print("ks: {:.4}, p: {:.4}".format(ks,p))
                 
