@@ -13,6 +13,7 @@ from LLSDataReader import readDataOrder
 import matplotlib.pyplot as plt
 from scipy.stats import ks_2samp
 from scipy.signal import fftconvolve
+import random
 
 class Model:
     
@@ -20,6 +21,8 @@ class Model:
         if plot:
             y1 = np.cumsum(arr1)
             y2 = np.cumsum(arr2)
+            print(len(y1),len(y2))
+            print(len(arr1),len(arr2))
             plt.figure()
             plt.plot(y1,'g--.')
             plt.plot(y2,'b--.')
@@ -29,10 +32,13 @@ class Model:
     
     def getData(self):
         client = kplr.API()
-        # ror^2 >= 0.01 - to start, try >= 0.008 next
-        planetKOIs = [client.planet('2b').koi_number]
+        # ror^2 >= 0.01 to start, try >= 0.008 next
+#        planetKOIs = client.planets(koi_ror=">=0.01")
+#        kois = client.kois(koi_ror=">=0.01")
+#        print(len(kois))
+        planetKOIs = [client.planet('2b')]
         kois = [client.koi(340.01)]
-        kois.extend([client.koi(s) for s in planetKOIs])
+        kois.extend([client.koi(s.koi_number) for s in planetKOIs])
         return kois
     
     def convolve(self,model):
@@ -70,7 +76,28 @@ class Model:
                 k.append(0)
         return fftconvolve(model,k,'same')
     
-    def findTransits(self,Time,Flux,num_transits,time0,period):
+    def findTransits(self,koi,num_transits,time0,period):
+        Flux,Time,Error = [],[],[]
+        c = 0
+        for lc in koi.get_light_curves(short_cadence=False):
+            # lc => data for 1 quarter
+            if c > 0:
+                break
+            c +=1
+            with lc.open() as f:
+                
+                # The lightcurve data are in the first FITS HDU.
+                hdu_data = f[1].data
+                Time.extend(hdu_data["time"])
+                Flux.extend(hdu_data["sap_flux"])
+                Error.extend(hdu_data["sap_flux_err"])
+        
+        # remove NaN's
+        b = np.array([i for i in range(len(Flux)) if str(Flux[i]) == 'nan'])
+        Time = [Time[i] for i in range(len(Time)) if i not in b]
+        Error = [Error[i] for i in range(len(Error)) if i not in b]
+        Flux = [Flux[i] for i in range(len(Flux)) if i not in b]
+        
         transits = []
         
         ### this finds transits times ###
@@ -84,9 +111,28 @@ class Model:
                 if t < max(Time) and t > min(Time):
                     transits.append(t)
             c += 1
-        return transits
+        return Time,Flux,Error,transits
     
-    def normalize(self, koiLC,time0,duration,period,numTransits,quarter,plot=False):
+    def make_fakes(self,Flux,Time,model,transits,duration):
+        """
+        num_fakes = number of transits (actually number of sets of number of transits)
+        randomly pick until we have that many
+        """
+        num = int(len(model)//2)
+        idx,i = random.randint(num,len(Time) - 1 - num),0
+        LCs,times = [],[]
+        while i < len(transits):
+            if min(abs(Time[int(idx)] - transits)) <= duration/20:
+                idx = random.randint(num,len(Time) - 1 - num)
+                continue
+            LCs.append(Flux[int(idx-num):int(idx+num)+1])
+            times.append(Time[int(idx)])
+            idx = random.randint(num,len(Time) - 1 - num)
+            i += 1
+        return LCs,times
+        
+    
+    def normalize(self, Time,Flux,Error,t,duration,period,quarter=0,plot=False):
         """
         normalize():
             find peak flux of lightcurve
@@ -96,22 +142,8 @@ class Model:
             divide diffLightcuve by peak flux value
             return diffLightcurve
         """
-#        time, flux = [], []
-        Flux,Time,Error = [],[],[]
-        with koiLC.open() as f:
-            # The lightcurve data are in the first FITS HDU.
-            hdu_data = f[1].data
-            Time.extend(hdu_data["time"])
-            Flux.extend(hdu_data["sap_flux"])
-            Error.extend(hdu_data["sap_flux_err"])
         
-        # remove NaN's
-        b = np.array([i for i in range(len(Flux)) if str(Flux[i]) == 'nan'])
-        Time = [Time[i] for i in range(len(Time)) if i not in b]
-        Error = [Error[i] for i in range(len(Error)) if i not in b]
-        Flux = [Flux[i] for i in range(len(Flux)) if i not in b]
         
-        transits = self.findTransits(Time,Flux,numTransits,time0,period)
         if plot:
             plt.figure()
             plt.plot(Time,Flux,'g.')
@@ -119,62 +151,53 @@ class Model:
             plt.ylabel("Flux")
             plt.title("Quarter " + str(quarter))
             Ymin, Ymax = min(Flux), max(Flux)
-            for t in transits:
-                plt.plot([t,t],[Ymin,Ymax],'r-')
-                idx = (np.abs(np.array(Time)-t)).argmin()
-                plt.plot([Time[idx]-duration/48,Time[idx]+duration/24],\
-                         [Flux[idx],Flux[idx]],'r-')
+            plt.plot([t,t],[Ymin,Ymax],'r-')
+            idx = (np.abs(np.array(Time)-t)).argmin()
+            plt.plot([Time[idx]-duration/48,Time[idx]+duration/48],\
+                     [Flux[idx],Flux[idx]],'r-')
             plt.show()
         
-        normedLCs,normedTs,transitT = [],[],[]
+        idx = (np.abs(np.array(Time)-t)).argmin()
+        end = (np.abs(np.array(Time)-t-(duration/48))).argmin()
+        start = (np.abs(np.array(Time)-t+(duration/48))).argmin()
+        endOut = (np.abs(np.array(Time)-t-(duration/24))).argmin()
+        startOut = (np.abs(np.array(Time)-t+(duration/24))).argmin()
 
-        for i in range(len(transits)):
-            t = transits[i]
-            transitT.append(t)
+        outTransitT = Time[startOut-1:start] + Time[end:endOut+1]
+        outTransitT = np.subtract(outTransitT,t)
+        outTransitF = Flux[startOut-1:start] + Flux[end:endOut+1]
+        outTransitE = Error[startOut-1:start] + Error[end:endOut+1]
+
+        A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
+        times = np.subtract(Time[startOut:endOut+1],t)
+        F = np.vstack((np.ones([1,len(times)]),times,[x**(2) for x in times]))
+        peakFlux = np.percentile(Flux,95)
+        Yfit = np.dot(A,F)
+        diffLC = Flux[startOut:endOut+1] - Yfit
+        diffLC += peakFlux
+        diffLC /= peakFlux
+        
+        intransitT = np.subtract(Time[start:end],t)
+
+        if plot:
+            print("transit time: {}".format(t))
+            plt.figure()
+            intransitF = Flux[start:end]
+            plt.plot(intransitT,intransitF,'go')
+            plt.plot(outTransitT,outTransitF,'b.')
+            plt.plot(outTransitT,Y,'k-')
+            plt.legend(["In-transit Flux","Out-transit Flux","LLS fit of Out-transit"])
+            plt.xlabel("Normalized Time [days]")
+            plt.ylabel("Flux")
+            plt.show()
             
-            idx = (np.abs(np.array(Time)-t)).argmin()
-            end = (np.abs(np.array(Time)-t-(duration/48))).argmin()
-            start = (np.abs(np.array(Time)-t+(duration/48))).argmin()
-            endOut = (np.abs(np.array(Time)-t-(duration/24))).argmin()
-            startOut = (np.abs(np.array(Time)-t+(duration/24))).argmin()
+            plt.figure()
+            plt.plot(times,diffLC,'b.')
+            plt.xlabel("Normalized Time [days]")
+            plt.ylabel("Normalized Flux")
+            plt.show()
 
-            outTransitT = Time[startOut-1:start] + Time[end:endOut+1]
-            outTransitT = np.subtract(outTransitT,t)
-            outTransitF = Flux[startOut-1:start] + Flux[end:endOut+1]
-            outTransitE = Error[startOut-1:start] + Error[end:endOut+1]
-
-            A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
-            times = np.subtract(Time[startOut:endOut+1],t)
-            F = np.vstack((np.ones([1,len(times)]),times,[x**(2) for x in times]))
-            peakFlux = np.percentile(Flux,95)
-            Yfit = np.dot(A,F)
-            diffLC = Flux[startOut:endOut+1] - Yfit
-            diffLC += peakFlux
-            diffLC /= peakFlux
-            normedLCs.append(diffLC)
-            intransitT = np.subtract(Time[start:end],t)
-            normedTs.append(times)
-            if plot:
-                print("transit time: {}".format(t))
-                plt.figure()
-                intransitF = Flux[start:end]
-                plt.plot(intransitT,intransitF,'go')
-                plt.plot(outTransitT,outTransitF,'b.')
-                plt.plot(outTransitT,Y,'k-')
-                plt.legend(["In-transit Flux","Out-transit Flux","LLS fit of Out-transit"])
-                plt.xlabel("Normalized Time [days]")
-                plt.ylabel("Flux")
-                plt.show()
-                
-                plt.figure()
-                plt.plot(times,diffLC,'b.')
-                plt.xlabel("Normalized Time [days]")
-                plt.ylabel("Normalized Flux")
-                plt.show()
-                
-                
-
-        return normedLCs,normedTs,transitT
+        return diffLC,times
     
     def makeModel(self,tt,period,incl,t,dor,ror,ldm_coeff1,ldm_coeff2):
         """
@@ -187,15 +210,35 @@ class Model:
         z = t2z(tt,period,incl,t,dor)
         return occultquad(z,ror,[ldm_coeff1,ldm_coeff2])
     
-    def applyModel(self,lc,times,model,transitTimes,duration,quarter,plot=False):
+    def getINOUT(self,lc,times,duration,plot=False):
+        start = (np.abs(np.array(times)+(duration/48))).argmin()-1
+        end = (np.abs(np.array(times)-(duration/48))).argmin()
+        lcOUT = np.array(lc[:start])
+        lcOUT = np.append(lcOUT,lc[end+1:])
+        timeOUT = times[:start]
+        timeOUT = np.append(timeOUT,times[end+1:])
+        if plot:
+            plt.figure()
+            plt.title("In-transit vs Out-transit")
+            plt.plot(timeOUT,lcOUT,'b.')
+            plt.plot(times[start:end],lc[start:end],'g.')
+            plt.show()
+        return lc[start:end],lcOUT,times[start:end],timeOUT
+    
+    def applyModel(self,lc,times,model,duration,plot=False):
         """
         returns INresiduals, OUTresiduals, INtime, OUTtime
         """
+        if plot:
+            plt.figure()
+            plt.plot(times,model,'k-')
+            plt.plot(times,lc,'b.')
+            plt.show()
     
         resINs, resOUTs = [],[] 
         timeINs, timeOUTs = [],[]
-        start = (np.abs(np.array(times)+(duration/48))).argmin()
-        end = (np.abs(np.array(times)-(duration/48))).argmin()-1
+        start = (np.abs(np.array(times)+(duration/48))).argmin()-1
+        end = (np.abs(np.array(times)-(duration/48))).argmin()
         residual = lc - model
         residualOUT = np.array(residual[:start])
         residualOUT = np.append(residualOUT,residual[end+1:])
@@ -203,7 +246,7 @@ class Model:
         timeOUT = np.append(timeOUT,times[end+1:])
         if plot:
             plt.figure()
-            plt.title("In-transit vs Out-transit of Quarter " + str(quarter))
+            plt.title("In-transit vs Out-transit")
             plt.plot(timeOUT,residualOUT,'b.')
             plt.plot(times[start:end],residual[start:end],'g.')
             plt.show()
@@ -212,6 +255,5 @@ class Model:
         timeINs.append(times[start:end])
         timeOUTs.append(timeOUT)
         return residual[start:end],residualOUT,times[start:end],timeOUT
-#        return resINs,resOUTs,timeINs,timeOUTs
 
 
