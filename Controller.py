@@ -44,8 +44,9 @@ for koi in kois:
         
         
     Time,Flux,Error,transits = model.findTransits(koi,koi.koi_num_transits,\
-                                        koi.koi_time0bk,koi.koi_period)
-    
+                                        koi.koi_time0bk,koi.koi_period,0)
+#    print(len(Time))
+    IN,OUT=[],[]
     for i in range(len(transits)):
         diffLC,t = model.normalize(Time,Flux,Error,transits[i],dur, \
                            koi.koi_period,c,False)
@@ -60,39 +61,43 @@ for koi in kois:
 #            m = model.convolve(m)
 
         
-##            lc,times,model,transitTimes,duration,quarter
-#        INres,OUTres,INt,OUTt = model.applyModel(diffLC,t,m,\
-#                                        dur,True)
-#        ks, p = model.getKS(INres,OUTres,True)
-#        print("ks: {:.4}, p: {:.4}".format(ks,p))
-#        avgKS += ks
-#        avgP += p
-#        c += 1
-
-        num_fake_trials = 20
-#        plt.figure()
-#        plt.plot(Time,Flux,'g.')
-#        for j in range(len(transits)):
-#            plt.plot([transits[j],transits[j]],[min(Flux),max(Flux)],'r-')
-        for j in range(num_fake_trials):
-            fakeLCs,fakeTs = model.make_fakes(Flux,Time,m,transits,dur)
-            c,avgKS,avgP = 0,0,0
-            for k in range(len(fakeLCs)):
-                fakeLCs[k],times = model.normalize(Time,Flux,Error,fakeTs[k],dur, \
-                               koi.koi_period,c,False)
-    #            print("lenLC: {}".format(len(fakeLCs[j])))
-    #            print("lenT: {}".format(len(list(times))))
-    #            print("lenM: {}".format(len(list(m))))
-    #            print()
-    #            plt.plot([fakeTs[j],fakeTs[j]],[min(Flux),max(Flux)],'b--')
+#            lc,times,model,transitTimes,duration,quarter
+        INres,OUTres,INt,OUTt = model.applyModel(diffLC,t,m,\
+                                        dur,False)
+        IN.extend(INres)
+        OUT.extend(OUTres)
+    ks, p = model.getKS(IN,OUT,False)
+    print("real ks: {:.4}, p: {:.4}".format(ks,p))
     
-                INfakes,OUTfakes,INt,OUTt = model.getINOUT(fakeLCs[k],times,dur,False)
-                ks, p = model.getKS(INfakes,OUTfakes,False)
+    avgKS,avgP,c = 0,0,0
+    num_fake_trials = 20
+#    plt.figure()
+#    plt.plot(Time,Flux,'g.')
+#    for j in range(len(transits)):
+#        plt.plot([transits[j],transits[j]],[min(Flux),max(Flux)],'r-')
+    for j in range(num_fake_trials):
+        fakeLCs,fakeTs = model.make_fakes(Flux,Time,m,transits,dur)
+        c,avgKS,avgP = 0,0,0
+        for k in range(len(fakeLCs)):
+            fakeLCs[k],times = model.normalize(Time,Flux,Error,fakeTs[k],dur, \
+                           koi.koi_period,c,False)
+            if len(fakeLCs[k]) < 7:
+                continue
+#        print("lenLC: {}".format(len(fakeLCs[j])))
+#        print("lenT: {}".format(len(list(times))))
+#        print("lenM: {}".format(len(list(m))))
+#        print()
+#        plt.plot([fakeTs[j],fakeTs[j]],[min(Flux),max(Flux)],'b--')
+
+            INfakes,OUTfakes,INt,OUTt = model.getINOUT(fakeLCs[k],times,dur,False)
+            ks, p = model.getKS(INfakes,OUTfakes,False)
+            if str(ks) != 'nan':
                 avgKS += ks
                 avgP += p
                 c += 1
-#        plt.show()
-#            print("trial{}: {}".format(j,avgKS/c,avgP/c))
+        print("({})fake ks: {:.4}, p: {:.4}".format(j,avgKS/c,avgP,c))
+#    plt.show()
+    print("fake ks: {:.4}, p: {:.4}".format(avgKS/c,avgP/c))
                 
 #print("Average KS: {:.4} +- {:.4}".format(avgKS/c,avgP/c))
                 

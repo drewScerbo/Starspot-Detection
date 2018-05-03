@@ -28,7 +28,9 @@ class Model:
             plt.plot(y2,'b--.')
             plt.title("CDF's of in and out transits")
             plt.show()
-        return ks_2samp(arr1,arr2)
+        with np.errstate(divide='ignore'):
+            ks = ks_2samp(arr1,arr2)
+        return ks
     
     def getData(self):
         client = kplr.API()
@@ -37,7 +39,8 @@ class Model:
 #        kois = client.kois(koi_ror=">=0.01")
 #        print(len(kois))
         planetKOIs = [client.planet('2b')]
-        kois = [client.koi(340.01)]
+#        kois = [client.koi(340.01)]
+        kois = []
         kois.extend([client.koi(s.koi_number) for s in planetKOIs])
         return kois
     
@@ -76,14 +79,14 @@ class Model:
                 k.append(0)
         return fftconvolve(model,k,'same')
     
-    def findTransits(self,koi,num_transits,time0,period):
+    def findTransits(self,koi,num_transits,time0,period,q=0):
         Flux,Time,Error = [],[],[]
         c = 0
         for lc in koi.get_light_curves(short_cadence=False):
             # lc => data for 1 quarter
-            if c > 0:
-                break
-            c +=1
+#            if c > 0:
+#                break
+#            if q == c:
             with lc.open() as f:
                 
                 # The lightcurve data are in the first FITS HDU.
@@ -92,6 +95,7 @@ class Model:
                 Flux.extend(hdu_data["sap_flux"])
                 Error.extend(hdu_data["sap_flux_err"])
         
+        c +=1
         # remove NaN's
         b = np.array([i for i in range(len(Flux)) if str(Flux[i]) == 'nan'])
         Time = [Time[i] for i in range(len(Time)) if i not in b]
@@ -168,6 +172,9 @@ class Model:
         outTransitF = Flux[startOut-1:start] + Flux[end:endOut+1]
         outTransitE = Error[startOut-1:start] + Error[end:endOut+1]
 
+        if end - start < 1:
+            return [],[]
+        
         A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
         times = np.subtract(Time[startOut:endOut+1],t)
         F = np.vstack((np.ones([1,len(times)]),times,[x**(2) for x in times]))
