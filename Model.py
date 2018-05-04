@@ -28,20 +28,16 @@ class Model:
             plt.plot(y2,'b--.')
             plt.title("CDF's of in and out transits")
             plt.show()
-        with np.errstate(divide='ignore'):
-            ks = ks_2samp(arr1,arr2)
-        return ks
+        return ks_2samp(arr1,arr2)
     
     def getData(self):
         client = kplr.API()
         # ror^2 >= 0.01 to start, try >= 0.008 next
 #        planetKOIs = client.planets(koi_ror=">=0.01")
-#        kois = client.kois(koi_ror=">=0.01")
-#        print(len(kois))
-        planetKOIs = [client.planet('2b')]
+        kois = client.kois(koi_ror=">=0.01")
+#        planetKOIs = [client.planet('2b')]
 #        kois = [client.koi(340.01)]
-        kois = []
-        kois.extend([client.koi(s.koi_number) for s in planetKOIs])
+#        kois.extend([client.koi(s.koi_number) for s in planetKOIs])
         return kois
     
     def convolve(self,model):

@@ -8,6 +8,8 @@ Created on Thu Mar  1 12:27:13 2018
 from Model import Model
 #from View import View
 import matplotlib.pyplot as plt
+import pandas as pd
+import os
 
 """
 Q's:
@@ -19,8 +21,13 @@ Q's:
 model = Model()
 #    view = View()
 kois = model.getData() # get kois
+print("number of KOIs to run: {}".format(len(kois)))
 
-# for each koi in data, get LC and normalize the first LC
+cols =  ['KOI_name','KS','avg_fake_KS','p','avg_fake_p','num_transits','star_spot']
+df = pd.DataFrame(columns=cols)
+filename = 'koi_tests.csv'
+
+realKS,realP = 0,0
 avgKS,avgP = 0.0,0.0
 for koi in kois:
     c = 0
@@ -45,12 +52,13 @@ for koi in kois:
         
     Time,Flux,Error,transits = model.findTransits(koi,koi.koi_num_transits,\
                                         koi.koi_time0bk,koi.koi_period,0)
+    print("number of transits: {}".format(len(transits)))
 #    print(len(Time))
     IN,OUT=[],[]
     for i in range(len(transits)):
         diffLC,t = model.normalize(Time,Flux,Error,transits[i],dur, \
                            koi.koi_period,c,False)
-        if len(diffLC) < 10:
+        if len(diffLC) < 1:
             continue
         
         # tt,period,incl,hjd,dor,ror,ldm_coeff1,ldm_coeff2
@@ -66,8 +74,8 @@ for koi in kois:
                                         dur,False)
         IN.extend(INres)
         OUT.extend(OUTres)
-    ks, p = model.getKS(IN,OUT,False)
-    print("real ks: {:.4}, p: {:.4}".format(ks,p))
+    realKS, realP = model.getKS(IN,OUT,False)
+    print("real ks: {:.4}, p: {:.4}".format(realKS,realP))
     
     avgKS,avgP,c = 0,0,0
     num_fake_trials = 20
@@ -75,19 +83,15 @@ for koi in kois:
 #    plt.plot(Time,Flux,'g.')
 #    for j in range(len(transits)):
 #        plt.plot([transits[j],transits[j]],[min(Flux),max(Flux)],'r-')
+    KS,P = 0,0
     for j in range(num_fake_trials):
         fakeLCs,fakeTs = model.make_fakes(Flux,Time,m,transits,dur)
         c,avgKS,avgP = 0,0,0
         for k in range(len(fakeLCs)):
             fakeLCs[k],times = model.normalize(Time,Flux,Error,fakeTs[k],dur, \
                            koi.koi_period,c,False)
-            if len(fakeLCs[k]) < 7:
+            if len(fakeLCs[k]) < 1:
                 continue
-#        print("lenLC: {}".format(len(fakeLCs[j])))
-#        print("lenT: {}".format(len(list(times))))
-#        print("lenM: {}".format(len(list(m))))
-#        print()
-#        plt.plot([fakeTs[j],fakeTs[j]],[min(Flux),max(Flux)],'b--')
 
             INfakes,OUTfakes,INt,OUTt = model.getINOUT(fakeLCs[k],times,dur,False)
             ks, p = model.getKS(INfakes,OUTfakes,False)
@@ -95,9 +99,24 @@ for koi in kois:
                 avgKS += ks
                 avgP += p
                 c += 1
-        print("({})fake ks: {:.4}, p: {:.4}".format(j,avgKS/c,avgP,c))
+#        print("Running fake transit #{}".format(j))
+        KS += avgKS/c
+        P += avgP/c
 #    plt.show()
-    print("fake ks: {:.4}, p: {:.4}".format(avgKS/c,avgP/c))
-                
-#print("Average KS: {:.4} +- {:.4}".format(avgKS/c,avgP/c))
-                
+    KS /= num_fake_trials
+    P /= num_fake_trials
+    print("fake ks: {:.4}, p: {:.4}".format(KS,P))
+
+    print("diff: {}".format(abs(realKS - KS)))
+    # save to pandas
+    # 'KOI_name','KS','avg_fake_KS','p','avg_fake_p','star_spot'
+    if abs(realKS - KS) >= P:
+        print("KOI {} => YES".format(koi.kepoi_name))
+        df.loc[len(df.index)] = [koi.kepoi_name,realKS,KS,realP,P,len(transits),'YES']
+    else:
+        print("KOI {} => NO".format(koi.kepoi_name))
+        df.loc[len(df.index)] = [koi.kepoi_name,realKS,KS,realP,P,len(transits),'NO']
+#    os.remove(filename)
+    df.to_csv(filename,index=False)
+    print('wrote to ' + filename)
+    print()
