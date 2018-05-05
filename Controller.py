@@ -22,7 +22,7 @@ model = Model()
 #    view = View()
 kois = model.getData() # get kois
 print("number of KOIs to run: {}".format(len(kois)))
-filename = 'koi_tests.csv'
+filename = 'star_spots.csv'
 if os.path.exists(filename):
     df = pd.read_csv(filename)
     print("loaded in {}".format(filename))
