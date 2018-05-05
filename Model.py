@@ -36,7 +36,6 @@ class Model:
 #        planetKOIs = client.planets(koi_ror=">=0.01")
         kois = client.kois(koi_ror=">=0.01")
 #        planetKOIs = [client.planet('2b')]
-#        kois = [client.koi(340.01)]
 #        kois.extend([client.koi(s.koi_number) for s in planetKOIs])
         return kois
     
@@ -168,7 +167,7 @@ class Model:
         outTransitF = Flux[startOut-1:start] + Flux[end:endOut+1]
         outTransitE = Error[startOut-1:start] + Error[end:endOut+1]
 
-        if end - start < 1:
+        if end - start < 5:
             return [],[]
         
         A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
