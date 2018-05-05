@@ -19,16 +19,17 @@ Q's:
 """
     
 model = Model()
-#    view = View()
+filename = 'star_spots.csv'
+    
 kois = model.getData() # get kois
 print("number of KOIs to run: {}".format(len(kois)))
-filename = 'star_spots.csv'
 if os.path.exists(filename):
     df = pd.read_csv(filename)
     print("loaded in {}".format(filename))
 else:
     print("created {}".format(filename))
-    cols =  ['KOI_name','KS','avg_fake_KS','p','avg_fake_p','num_transits','star_spot']
+    cols =  ['KOI_name','KS','fake_KSs','p','fake_Ps','num_trials',\
+             'fakeAvg','fakeMed','fakeStd','fakeMad']
     df = pd.DataFrame(columns=cols)
 
 realKS,realP = 0,0
@@ -57,6 +58,8 @@ for koi in kois:
     if not error:
         Time,Flux,Error,transits = model.findTransits(koi,koi.koi_num_transits,\
                                         koi.koi_time0bk,koi.koi_period,0)
+    else:
+        transits = []
     print("number of transits: {}".format(len(transits)))
 #    print(len(Time))
     IN,OUT=[],[]
@@ -93,8 +96,8 @@ for koi in kois:
     if error:
         num_fake_trials = 0
     else:
-        num_fake_trials = 20
-    KS,P = 0,0
+        num_fake_trials = 2
+    KS,P = '',''
     for j in range(num_fake_trials):
         if error:
             break
@@ -117,26 +120,23 @@ for koi in kois:
             else:
                 k -= 1
         if c == 0:
-            j -= 1
+#            j -= 1
             continue
-        KS += avgKS/c
-        P += avgP/c
+        if j == 0:
+            KS += str(avgKS/c)
+            P += str(avgP/c)
+        KS += ';' + str(avgKS/c)
+        P += ';' + str(avgP/c)
     if not error:
-        KS /= num_fake_trials
-        P /= num_fake_trials
         print("fake ks: {:.4}, p: {:.4}".format(KS,P))
-    
-        print("diff: {}".format(abs(realKS - KS)))
-        # save to pandas
-        # 'KOI_name','KS','avg_fake_KS','p','avg_fake_p','num_transits','star_spot'
-        if abs(realKS - KS) >= P + realP:
-            print("KOI {} => YES".format(koi.kepoi_name))
-            df.loc[len(df.index)] = [koi.kepoi_name,realKS,KS,realP,P,len(transits),'YES']
-        else:
-            print("KOI {} => NO".format(koi.kepoi_name))
-            df.loc[len(df.index)] = [koi.kepoi_name,realKS,KS,realP,P,len(transits),'NO']
-#    os.remove(filename)
+        
+        values = model.getValues(realKS,KS)
+        # save to file
+        df.loc[len(df.index)] = [koi.kepoi_name,realKS,KS,realP,P,num_fake_trials,\
+               values[0],values[1],values[2],values[3]]
     else:
-        df.loc[len(df.index)] = [koi.kepoi_name,-1,-1,-1,-1,-1,'ERROR']
+        df.loc[len(df.index)] = [koi.kepoi_name,-1,'ERROR',-1,'ERROR',num_fake_trials,\
+               -1,-1,-1,-1]
     df.to_csv(filename,index=False)
     print('wrote to ' + filename)
+
