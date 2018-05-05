@@ -18,6 +18,7 @@ import random
 class Model:
     
     def getKS(self,arr1,arr2,plot=False):
+        np.seterr(divide='ignore', invalid='ignore')
         if plot:
             y1 = np.cumsum(arr1)
             y2 = np.cumsum(arr2)
@@ -167,7 +168,7 @@ class Model:
         outTransitF = Flux[startOut-1:start] + Flux[end:endOut+1]
         outTransitE = Error[startOut-1:start] + Error[end:endOut+1]
 
-        if end - start < 5:
+        if end - start < 3:
             return [],[]
         
         A,Y = readDataOrder(outTransitT,outTransitF,outTransitE,2)
@@ -257,5 +258,21 @@ class Model:
         timeINs.append(times[start:end])
         timeOUTs.append(timeOUT)
         return residual[start:end],residualOUT,times[start:end],timeOUT
+
+    def getValues(self,ks,fakeKS ):
+        """
+        return (average,median,standard dev) of reals,
+            (average,median,standard dev) of fakes
+        """
+        if str(fakeKS) == 'nan':
+            return -1,-1,-1,-1
+        fakes = np.array([float(x) for x in fakeKS.split(';')])
+        
+        fakeAvg = np.average(fakes)
+        fakeMed = np.median(fakes)
+        fakeStd = np.std(fakes)
+        fakeMad = np.mean(abs(fakes - np.mean(fakes)))
+        return fakeAvg,fakeMed,fakeStd,fakeMad
+
 
 
