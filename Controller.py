@@ -121,6 +121,8 @@ for koi in kois:
     for j in range(num_fake_trials):
         if error:
             break
+        elif j == num_fake_trials//2:
+            print('Halfway through fake trials')
         fakeLCs,fakeTs = model.make_fakes(Flux,Time,m,transits,dur)
         
         c,avgKS,avgP = 0,0,0
@@ -143,17 +145,13 @@ for koi in kois:
         KS += ';' + str(ks)
         P += ';' + str(p)
     if not error and len(KS) > 0:
-        print("fake ks: {:.4}, p: {:.4}".format(KS,P))
         
         values = model.getValues(realKS,KS)
+        print("fake ks: {:.4}, p: {:.4}".format(values[1],values[2]))
         
         # save to file
-        if replace and -1 in df.loc[count].values:
-            df.loc[count] = [koi.kepoi_name,realKS,KS,realP,P,num_fake_trials,\
-               values[0],values[1],values[2],values[3],values[4],values[5]]
-        else:
-            df.loc[len(df.index)] = [koi.kepoi_name,realKS,KS,realP,P,num_fake_trials,\
-               values[0],values[1],values[2],values[3],values[4],values[5]]
+        df.loc[len(df.index)] = [koi.kepoi_name,realKS,KS,realP,P,num_fake_trials,\
+           values[0],values[1],values[2],values[3],values[4],values[5]]
         
     else:
         print('Error found')
