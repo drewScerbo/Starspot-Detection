@@ -17,17 +17,15 @@ import random
 
 class Model:
     
-    def getKS(self,arr1,arr2,plot=False):
+    def getKS(self,arr1,arr2,name,plot=False):
         np.seterr(divide='ignore', invalid='ignore')
         if plot:
             y1 = np.cumsum(arr1)
             y2 = np.cumsum(arr2)
-            print(len(y1),len(y2))
-            print(len(arr1),len(arr2))
             plt.figure()
             plt.plot(y1,'g--.')
             plt.plot(y2,'b--.')
-            plt.title("CDF's of in and out transits")
+            plt.title("KS test of {}".format(name))
             plt.show()
         return ks_2samp(arr1,arr2)
     
@@ -35,7 +33,8 @@ class Model:
         client = kplr.API()
         # ror^2 >= 0.01 to start, try >= 0.008 next
 #        planetKOIs = client.planets(koi_ror=">=0.01")
-        kois = client.kois(koi_ror=">=0.01")
+        kois = client.kois(koi_ror='>=0.01')
+#        kois = []
 #        planetKOIs = [client.planet('2b')]
 #        kois.extend([client.koi(s.koi_number) for s in planetKOIs])
         return kois
@@ -75,14 +74,11 @@ class Model:
                 k.append(0)
         return fftconvolve(model,k,'same')
     
-    def findTransits(self,koi,num_transits,time0,period,q=0):
+    def findTransits(self,koi,num_transits,time0,period):
         Flux,Time,Error = [],[],[]
         c = 0
         for lc in koi.get_light_curves(short_cadence=False):
             # lc => data for 1 quarter
-#            if c > 0:
-#                break
-#            if q == c:
             with lc.open() as f:
                 
                 # The lightcurve data are in the first FITS HDU.
@@ -91,7 +87,6 @@ class Model:
                 Flux.extend(hdu_data["sap_flux"])
                 Error.extend(hdu_data["sap_flux_err"])
         
-        c +=1
         # remove NaN's
         b = np.array([i for i in range(len(Flux)) if str(Flux[i]) == 'nan'])
         Time = [Time[i] for i in range(len(Time)) if i not in b]
@@ -202,6 +197,30 @@ class Model:
 
         return diffLC,times
     
+    def isNone(self,koi):
+        if koi.koi_num_transits is None:
+            print("num_transits is None")
+            return True
+        if koi.koi_period is None:
+            print("period is None")
+            return True
+        if koi.koi_incl is None:
+            print("incl is None")
+            return True
+        if koi.koi_dor is None:
+            print("dor is None")
+            return True
+        if koi.koi_ror is None:
+            print("ror is None")
+            return True
+        if koi.koi_ldm_coeff1 is None:
+            print("ldm_coeff1 is None")
+            return True
+        if koi.koi_ldm_coeff2 is None:
+            print("ldm_coeff2 is None")
+            return True
+        return False
+    
     def makeModel(self,tt,period,incl,t,dor,ror,ldm_coeff1,ldm_coeff2):
         """
         -t2z
@@ -240,8 +259,8 @@ class Model:
     
         resINs, resOUTs = [],[] 
         timeINs, timeOUTs = [],[]
-        start = (np.abs(np.array(times)+(duration/48))).argmin()-1
-        end = (np.abs(np.array(times)-(duration/48))).argmin()
+        start = len(lc)//4
+        end = 3*len(lc)//4
         residual = lc - model
         residualOUT = np.array(residual[:start])
         residualOUT = np.append(residualOUT,residual[end+1:])
@@ -272,7 +291,8 @@ class Model:
         fakeMed = np.median(fakes)
         fakeStd = np.std(fakes)
         fakeMad = np.mean(abs(fakes - np.mean(fakes)))
-        return fakeAvg,fakeMed,fakeStd,fakeMad
+        
+        return fakeAvg,fakeMed,fakeStd,fakeMad,ks/fakeAvg,ks/fakeMed
 
 
 
